@@ -1,0 +1,5 @@
+{
+  "name": "ThemisScan",
+  "description": "An intelligent legal contract analyzer that identifies risks, missing terms, and negotiation opportunities using Brazilian law standards.",
+  "requestFramePermissions": []
+}
