@@ -42,3 +42,46 @@ npm run build
 # preview local (estático)
 npm run preview
 ```
+
+## Proxy seguro para a chave (Cloudflare Workers)
+
+Para evitar expor `GEMINI_API_KEY` no frontend, use o proxy incluso em `server/cloudflare-worker`.
+
+1) Pré-requisitos
+- Conta Cloudflare e `wrangler` instalado:
+
+```bash
+npm install -g wrangler
+```
+
+2) Configure o projeto do Worker
+
+```bash
+cd server/cloudflare-worker
+# Faça login
+wrangler login
+# Defina o segredo da API do Gemini
+wrangler secret put GEMINI_API_KEY
+# (opcional) restrinja CORS
+wrangler kv:namespace create ALLOWED_ORIGIN # opcional, ou defina no wrangler.toml
+```
+
+3) Rodar em dev e publicar
+
+```bash
+# Dev local
+wrangler dev
+
+# Deploy
+wrangler publish
+```
+
+4) Configure o frontend para usar o proxy
+
+No arquivo `.env` do frontend, defina a URL retornada pelo publish (ex.: `https://themisscan-proxy.username.workers.dev`):
+
+```
+VITE_PROXY_URL=https://themisscan-proxy.username.workers.dev
+```
+
+Com isso, o app usará o proxy (em `services/geminiService.ts`) e não precisará mais de `VITE_GEMINI_API_KEY` no cliente.
