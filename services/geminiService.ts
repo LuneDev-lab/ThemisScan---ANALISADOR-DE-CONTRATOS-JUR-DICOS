@@ -78,9 +78,25 @@ const analysisSchema: Schema = {
 
 export const analyzeContract = async (contractText: string, context?: string): Promise<AnalysisResponse> => {
   try {
+    const proxyUrl = (import.meta as any).env?.VITE_PROXY_URL as string | undefined;
+
+    if (proxyUrl) {
+      const res = await fetch(`${proxyUrl.replace(/\/$/, '')}/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contractText, context })
+      });
+      if (!res.ok) {
+        const msg = await res.text();
+        throw new Error(`Falha no proxy: ${msg}`);
+      }
+      const data = await res.json() as AnalysisResponse;
+      return data;
+    }
+
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
     if (!apiKey) {
-      throw new Error("Chave de API ausente. Defina VITE_GEMINI_API_KEY no seu .env.");
+      throw new Error("Chave de API ausente. Defina VITE_PROXY_URL (recomendado) ou VITE_GEMINI_API_KEY no .env.");
     }
 
     const ai = new GoogleGenAI({ apiKey });
