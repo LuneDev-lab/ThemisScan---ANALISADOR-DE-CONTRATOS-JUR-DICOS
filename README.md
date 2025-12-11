@@ -27,12 +27,22 @@ Ferramenta de análise de contratos jurídicos com IA, usando Google Generative 
    - Faça login com sua conta Google
    - Crie uma nova chave de API
 
-3. **Executar o servidor de desenvolvimento:**
+3. **Executar localmente com suporte a serverless:**
+
+   **Opção 1: Usando Vercel CLI (Recomendado)**
    ```bash
-   npm run dev
+   npm install -g vercel
+   vercel dev
+   ```
+   O Vercel CLI automaticamente detecta e executa as funções serverless em `/api`.
+   
+   **Opção 2: Usando Netlify CLI**
+   ```bash
+   npm install -g netlify-cli
+   netlify dev
    ```
    
-   A aplicação estará disponível em: `http://localhost:3000`
+   **Nota:** O comando `npm run dev` executa apenas o frontend Vite e **não** suporta as funções serverless em `/api`. Use Vercel CLI ou Netlify CLI para desenvolvimento local completo.
 
 ## Deploy em Produção
 
