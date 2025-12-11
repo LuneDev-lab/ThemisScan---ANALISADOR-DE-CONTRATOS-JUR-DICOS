@@ -3,8 +3,8 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig(() => ({
   plugins: [react()],
-  base: '/ThemisScan---ANALISADOR-DE-CONTRATOS-JUR-DICOS/',
-  // Usaremos import.meta.env.VITE_* diretamente, sem define manual
+  // Usar caminho relativo para compatibilidade ampla (GitHub Pages/Preview)
+  base: './',
   server: {
     host: '0.0.0.0',
     port: 3000
