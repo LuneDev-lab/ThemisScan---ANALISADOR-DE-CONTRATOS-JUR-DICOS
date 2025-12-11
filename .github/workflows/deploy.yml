@@ -20,8 +20,11 @@ jobs:
         node-version: '18'
         cache: 'npm'
 
-    - name: Install dependencies
-      run: npm ci
+    - name: Clean cache and reinstall
+      run: |
+        rm -rf node_modules package-lock.json
+        npm cache clean --force
+        npm install
 
     - name: Build
       run: npm run build
