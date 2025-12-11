@@ -19,6 +19,8 @@ import { AnalysisResponse } from "../types";
  */
 export const analyzeContract = async (contractText: string, context?: string): Promise<AnalysisResponse> => {
   try {
+    // Note: API routes are served from root, not under the base path configured in vite.config.ts
+    // This is standard behavior for Vercel/Netlify serverless functions
     const response = await fetch('/api/analyze', {
       method: 'POST',
       headers: {

@@ -95,6 +95,10 @@ interface RequestBody {
 /**
  * Serverless function handler
  * Compatible with Vercel and Netlify serverless functions
+ * 
+ * Note: Using 'any' types for req/res is intentional for cross-platform compatibility.
+ * Vercel uses VercelRequest/VercelResponse, Netlify uses different types.
+ * This handler works with both platforms without requiring platform-specific dependencies.
  */
 export default async function handler(req: any, res: any) {
   // Only allow POST requests
