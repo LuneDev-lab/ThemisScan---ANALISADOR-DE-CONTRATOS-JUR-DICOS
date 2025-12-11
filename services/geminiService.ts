@@ -78,7 +78,7 @@ const analysisSchema: Schema = {
 
 export const analyzeContract = async (contractText: string, context?: string): Promise<AnalysisResponse> => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
     const prompt = `
       Você é um assistente jurídico sênior especializado em análise de contratos sob a legislação brasileira (Código Civil, CDC, etc.).

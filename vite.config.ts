@@ -10,8 +10,8 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     base: process.env.NODE_ENV === 'production' ? '/ThemisScan---ANALISADOR-DE-CONTRATOS-JUR-DICOS/' : '/',
     define: {
-      // Isso permite que 'process.env.API_KEY' seja substituído pelo valor real durante o build
-      'process.env.API_KEY': JSON.stringify(env.API_KEY)
+      // Isso permite que 'process.env.GEMINI_API_KEY' seja substituído pelo valor real durante o build
+      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
     },
     server: {
       host: '0.0.0.0',
