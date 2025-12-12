@@ -21,7 +21,8 @@ const App: React.FC = () => {
       setStatus(AnalysisStatus.COMPLETED);
     } catch (err) {
       console.error(err);
-      setError("Não foi possível completar a análise. Verifique sua chave de API ou tente novamente.");
+      const errorObj = err as Error;
+      setError(errorObj?.message || "Não foi possível completar a análise. Verifique sua chave de API ou tente novamente.");
       setStatus(AnalysisStatus.ERROR);
     }
   };

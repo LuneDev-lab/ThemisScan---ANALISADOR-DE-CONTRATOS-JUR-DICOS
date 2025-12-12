@@ -18,10 +18,12 @@ const InputSection: React.FC<InputSectionProps> = ({ onAnalyze, isLoading }) => 
 
   // Initialize PDF worker
   React.useEffect(() => {
-    // Determine the correct object to set workerSrc on
-    const lib = pdfjsLib.default || pdfjsLib;
-    if (lib && lib.GlobalWorkerOptions && !lib.GlobalWorkerOptions.workerSrc) {
-      lib.GlobalWorkerOptions.workerSrc = `https://esm.sh/pdfjs-dist@3.11.174/build/pdf.worker.min.js`;
+    // Configure PDF.js worker
+    const lib = (pdfjsLib as any).default || pdfjsLib;
+    if (lib && lib.GlobalWorkerOptions) {
+      // Use a more reliable CDN worker source and set it synchronously
+      lib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+      console.log('PDF workerSrc configured:', lib.GlobalWorkerOptions.workerSrc);
     }
   }, []);
 
@@ -53,22 +55,44 @@ const InputSection: React.FC<InputSectionProps> = ({ onAnalyze, isLoading }) => 
         reader.onload = async (event) => {
           const arrayBuffer = event.target?.result as ArrayBuffer;
           try {
+            console.log('Starting PDF processing...');
             const lib = pdfjsLib.default || pdfjsLib;
+            console.log('PDF.js library loaded:', !!lib);
+
+            if (!lib) {
+              throw new Error('PDF.js library not loaded');
+            }
+
+            // Ensure workerSrc is set; use CDN worker if not
+            if (lib && lib.GlobalWorkerOptions && !lib.GlobalWorkerOptions.workerSrc) {
+              lib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+            }
+
+            console.log('Creating PDF document...');
             const loadingTask = lib.getDocument({ data: arrayBuffer });
+
             const pdf = await loadingTask.promise;
+            console.log('PDF loaded successfully. Pages:', pdf.numPages);
             
             let fullText = '';
             for (let i = 1; i <= pdf.numPages; i++) {
+              console.log(`Processing page ${i}/${pdf.numPages}`);
               const page = await pdf.getPage(i);
               const textContent = await page.getTextContent();
               // @ts-ignore
               const pageText = textContent.items.map(item => item.str).join(' ');
               fullText += pageText + '\n\n';
             }
+            console.log('PDF text extraction completed. Length:', fullText.length);
             setText(fullText);
           } catch (error) {
             console.error("Error reading PDF file:", error);
-            alert("Erro ao processar o arquivo PDF.");
+            console.error("Error details:", {
+              message: error.message,
+              stack: error.stack,
+              name: error.name
+            });
+            alert(`Erro ao processar o arquivo PDF: ${error.message}`);
           } finally {
             setIsReadingFile(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
