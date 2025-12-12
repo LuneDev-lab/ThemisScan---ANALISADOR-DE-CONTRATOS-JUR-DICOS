@@ -98,7 +98,7 @@ export const analyzeContract = async (contractText: string, context?: string): P
         ${JSON.stringify(analysisSchema, null, 2)}
       `;
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
