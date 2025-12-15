@@ -3,7 +3,8 @@ import { AnalysisResponse } from "../types";
 // Configurações de backend e API
 const USE_BACKEND = import.meta.env.VITE_USE_BACKEND === 'true';
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-const BACKEND_ENABLED = USE_BACKEND || !API_KEY;
+// Só usa backend se explicitamente configurado, não quando a chave está ausente
+const BACKEND_ENABLED = USE_BACKEND;
 
 const parseRiskLevel = (level: string): 'BAIXO' | 'MÉDIO' | 'ALTO' => {
   const upper = level.toUpperCase();
