@@ -225,7 +225,6 @@ export default async function handler(
       }
 
       const status = lastError?.status || 500;
-      const status = lastError?.status || 500;
       const msg = lastError?.message || 'Falha em todos os modelos disponíveis.';
       
       // Melhorar mensagem de erro para o usuário
