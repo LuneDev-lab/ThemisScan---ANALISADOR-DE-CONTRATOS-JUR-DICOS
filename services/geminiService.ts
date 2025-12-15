@@ -1,10 +1,34 @@
 import { AnalysisResponse } from "../types";
 
+// Configurações de backend e API
+const USE_BACKEND = import.meta.env.VITE_USE_BACKEND === 'true';
+const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+const BACKEND_ENABLED = USE_BACKEND || !API_KEY;
+
 const parseRiskLevel = (level: string): 'BAIXO' | 'MÉDIO' | 'ALTO' => {
   const upper = level.toUpperCase();
   if (upper.includes('ALTO')) return 'ALTO';
   if (upper.includes('BAIXO')) return 'BAIXO';
   return 'MÉDIO';
+};
+
+const buildPrompt = (contractText: string, context?: string): string => {
+  return `
+    Você é um assistente jurídico sênior especializado em análise de contratos sob a legislação brasileira (Código Civil, CDC, etc.).
+
+    Analise o seguinte contrato com extremo rigor. Identifique riscos, cláusulas abusivas, termos faltantes e oportunidades.
+    Seja prático e direto. Foco na proteção de quem está recebendo esta análise.
+
+    ${context ? `CONTEXTO ADICIONAL FORNECIDO PELO USUÁRIO: ${context}` : ''}
+
+    CONTRATO PARA ANÁLISE:
+    ---
+    ${contractText}
+    ---
+
+    Responda APENAS com um objeto JSON válido seguindo exatamente este schema:
+    ${JSON.stringify(analysisSchema, null, 2)}
+  `;
 };
 
 const analysisSchema = {
@@ -75,51 +99,40 @@ const analysisSchema = {
   ],
 };
 
-export const analyzeContract = async (contractText: string, context?: string): Promise<AnalysisResponse> => {
-  const maxRetries = 3;
+const callGeminiDirect = async (prompt: string, maxRetries: number = 3): Promise<AnalysisResponse> => {
+  if (!API_KEY) {
+    throw new Error('VITE_GEMINI_API_KEY não configurada. Configure a variável de ambiente ou ative backend.');
+  }
+
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
-      const prompt = `
-        Você é um assistente jurídico sênior especializado em análise de contratos sob a legislação brasileira (Código Civil, CDC, etc.).
-
-        Analise o seguinte contrato com extremo rigor. Identifique riscos, cláusulas abusivas, termos faltantes e oportunidades.
-        Seja prático e direto. Foco na proteção de quem está recebendo esta análise.
-
-        ${context ? `CONTEXTO ADICIONAL FORNECIDO PELO USUÁRIO: ${context}` : ''}
-
-        CONTRATO PARA ANÁLISE:
-        ---
-        ${contractText}
-        ---
-
-        Responda APENAS com um objeto JSON válido seguindo exatamente este schema:
-        ${JSON.stringify(analysisSchema, null, 2)}
-      `;
-
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: prompt
-                }
-              ]
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${API_KEY}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  {
+                    text: prompt
+                  }
+                ]
+              }
+            ],
+            generationConfig: {
+              temperature: 0.2,
+              responseMimeType: "application/json",
+              responseSchema: analysisSchema
             }
-          ],
-          generationConfig: {
-            temperature: 0.2,
-            responseMimeType: "application/json",
-            responseSchema: analysisSchema
-          }
-        })
-      });
+          })
+        }
+      );
 
       if (!response.ok) {
         let errorText = '';
@@ -131,12 +144,16 @@ export const analyzeContract = async (contractText: string, context?: string): P
         }
 
         console.error('Gemini API returned an error:', response.status, errorText);
+
+        if (response.status === 400) {
+          throw new Error('Requisição inválida (400). Verifique o formato do contrato.');
+        }
         if (response.status === 401 || response.status === 403) {
-          throw new Error('Chave de API inválida ou sem permissão (401/403). Verifique a chave em .env');
+          throw new Error('Chave de API inválida ou sem permissão (401/403). Verifique a chave em .env.local');
         }
         if (response.status === 429) {
           if (attempt < maxRetries - 1) {
-            const delay = Math.pow(2, attempt) * 1000; // Exponential backoff: 1s, 2s, 4s
+            const delay = Math.pow(2, attempt) * 1000;
             console.log(`Rate limit hit (429). Retrying in ${delay}ms... (attempt ${attempt + 1}/${maxRetries})`);
             await new Promise(resolve => setTimeout(resolve, delay));
             continue;
@@ -145,25 +162,26 @@ export const analyzeContract = async (contractText: string, context?: string): P
         }
         if (response.status === 503) {
           if (attempt < maxRetries - 1) {
-            const delay = Math.pow(2, attempt) * 2000; // Exponential backoff: 2s, 4s, 8s for 503
+            const delay = Math.pow(2, attempt) * 2000;
             console.log(`Service overloaded (503). Retrying in ${delay}ms... (attempt ${attempt + 1}/${maxRetries})`);
             await new Promise(resolve => setTimeout(resolve, delay));
             continue;
           }
           throw new Error('Serviço sobrecarregado (503). O modelo está temporariamente indisponível. Tente novamente em alguns minutos.');
         }
-        throw new Error(`Gemini API error: ${response.status} ${response.statusText} - ${errorText}`);
+        throw new Error(`Erro na API Gemini: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
 
       if (!data.candidates || !data.candidates[0] || !data.candidates[0].content || !data.candidates[0].content.parts || !data.candidates[0].content.parts[0]) {
-        throw new Error("Invalid response from Gemini API");
+        console.error('Invalid response structure from Gemini:', data);
+        throw new Error("Resposta inválida da API Gemini. Tente novamente.");
       }
 
       const jsonText = data.candidates[0].content.parts[0].text;
       if (!jsonText) {
-        throw new Error("No response generated from AI");
+        throw new Error("Nenhuma resposta gerada pela IA. Tente novamente.");
       }
 
       const parsedData = JSON.parse(jsonText) as AnalysisResponse;
@@ -171,12 +189,76 @@ export const analyzeContract = async (contractText: string, context?: string): P
 
     } catch (error) {
       lastError = error as Error;
-  if (error instanceof Error && (error.message.includes('401') || error.message.includes('403') || error.message.includes('429') || error.message.includes('503'))) {
-    // These are retryable errors, continue to next attempt
-    continue;
-  }
-  // For other errors, don't retry
-  break;
+      if (error instanceof Error && (error.message.includes('429') || error.message.includes('503'))) {
+        continue;
+      }
+      break;
     }
   }
+
+  throw lastError || new Error('Falha ao chamar API Gemini após múltiplas tentativas.');
+};
+
+const callBackend = async (contractText: string, context?: string): Promise<AnalysisResponse> => {
+  // Proteger contra requisições muito grandes
+  const maxSize = 10 * 1024 * 1024; // 10MB
+  if (contractText.length > maxSize) {
+    throw new Error('Contrato muito grande (máximo 10MB). Tente com um arquivo menor.');
+  }
+
+  try {
+    const response = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        text: contractText,
+        context: context || ''
+      })
+    });
+
+    if (!response.ok) {
+      let errorMsg = `Erro do servidor (${response.status})`;
+      try {
+        const errorData = await response.json();
+        errorMsg = errorData?.error || errorMsg;
+      } catch (e) {
+        // Response não é JSON
+      }
+      console.error('Backend error:', response.status, errorMsg);
+      throw new Error(errorMsg);
+    }
+
+    const data = await response.json() as AnalysisResponse;
+    return data;
+  } catch (error) {
+    if (error instanceof TypeError) {
+      console.error('Network error calling backend:', error);
+      throw new Error('Erro de rede ao conectar ao servidor. Verifique a conexão ou tente novamente.');
+    }
+    throw error;
+  }
+};
+
+export const analyzeContract = async (contractText: string, context?: string): Promise<AnalysisResponse> => {
+  // Validação básica
+  if (!contractText || typeof contractText !== 'string') {
+    throw new Error('Contrato inválido. Forneça um texto válido.');
+  }
+
+  if (!contractText.trim()) {
+    throw new Error('O contrato não pode estar vazio.');
+  }
+
+  // Decidir se usa backend ou chamada direta
+  if (BACKEND_ENABLED) {
+    console.log('Usando backend para análise...');
+    return await callBackend(contractText, context);
+  }
+
+  // Chamada direta ao Gemini
+  console.log('Usando chamada direta ao Gemini API...');
+  const prompt = buildPrompt(contractText, context);
+  return await callGeminiDirect(prompt);
 };
