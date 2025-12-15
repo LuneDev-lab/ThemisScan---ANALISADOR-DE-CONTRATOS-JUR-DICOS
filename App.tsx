@@ -58,7 +58,7 @@ const App: React.FC = () => {
                   </div>
                   <div className="flex-grow">
                     <h3 className="text-lg font-bold text-red-800">Erro na Análise</h3>
-                    <p className="text-red-600 mt-1">{error}</p>
+                    <pre className="text-red-600 mt-1 whitespace-pre-wrap font-sans text-sm">{error}</pre>
 
                     <div className="mt-4 bg-white rounded p-4 text-sm text-slate-600 space-y-2">
                       <p className="font-semibold text-slate-700">Sugestões:</p>

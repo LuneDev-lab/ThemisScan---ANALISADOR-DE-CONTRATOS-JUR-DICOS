@@ -146,6 +146,17 @@ const callGeminiDirect = async (prompt: string, maxRetries: number = 3): Promise
         console.error('Gemini API returned an error:', response.status, errorText);
 
         if (response.status === 400) {
+          // Erro 400 pode ser chave inválida ou requisição mal formatada
+          if (errorText.includes('API key not valid') || errorText.includes('API key')) {
+            throw new Error(
+              '❌ Chave de API inválida!\n\n' +
+              'A chave configurada não é válida. Verifique:\n' +
+              '1. Se você colocou a chave correta em .env.local\n' +
+              '2. Se a chave não expirou ou foi revogada\n' +
+              '3. Obtenha uma nova em: https://ai.google.dev/gemini-api/docs/api-key\n' +
+              '4. Reinicie o servidor após editar .env.local'
+            );
+          }
           throw new Error('Requisição inválida (400). Verifique o formato do contrato.');
         }
         if (response.status === 401 || response.status === 403) {
@@ -249,6 +260,19 @@ export const analyzeContract = async (contractText: string, context?: string): P
 
   if (!contractText.trim()) {
     throw new Error('O contrato não pode estar vazio.');
+  }
+
+  // Validar configuração antes de prosseguir
+  if (!BACKEND_ENABLED && (!API_KEY || API_KEY === 'your_gemini_api_key_here')) {
+    throw new Error(
+      '❌ Chave de API não configurada!\n\n' +
+      '📝 Configure sua chave em .env.local:\n' +
+      '1. Obtenha sua chave em: https://ai.google.dev/gemini-api/docs/api-key\n' +
+      '2. Edite o arquivo .env.local\n' +
+      '3. Substitua "your_gemini_api_key_here" pela sua chave real\n' +
+      '4. Reinicie o servidor (npm run dev)\n\n' +
+      'Ou configure VITE_USE_BACKEND=true para usar o backend serverless.'
+    );
   }
 
   // Decidir se usa backend ou chamada direta
