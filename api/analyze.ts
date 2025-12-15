@@ -198,6 +198,33 @@ export default async function handler(
     }
 
     if (!successResponse) {
+      // TENTATIVA DE DIAGNÓSTICO: Listar modelos disponíveis
+      try {
+        console.log('[api/analyze] Tentando listar modelos disponíveis para diagnóstico...');
+        const listResp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${API_KEY}`);
+        if (listResp.ok) {
+            const listData = await listResp.json();
+            const availableModels = listData.models?.map((m: any) => m.name.replace('models/', '')) || [];
+            console.error('[api/analyze] Modelos disponíveis para esta chave:', availableModels);
+            
+            res.status(500).json({ 
+                error: `Erro de Modelo: Nenhum dos modelos padrão funcionou. Sua chave tem acesso a: ${availableModels.join(', ')}. Verifique se a API 'Generative Language' está ativada no Google Cloud.` 
+            });
+            return;
+        } else {
+            const listErr = await listResp.text();
+            console.error('[api/analyze] Erro ao listar modelos:', listErr);
+            // Se falhar ao listar, provavelmente a chave é inválida ou não tem permissão nenhuma
+            if (listResp.status === 400 || listResp.status === 403) {
+                 res.status(500).json({ error: `Chave de API inválida ou sem permissão (Erro ${listResp.status}). Verifique se a API 'Generative Language' está habilitada no seu projeto Google Cloud.` });
+                 return;
+            }
+        }
+      } catch (diagErr) {
+        console.error('[api/analyze] Falha no diagnóstico:', diagErr);
+      }
+
+      const status = lastError?.status || 500;
       const status = lastError?.status || 500;
       const msg = lastError?.message || 'Falha em todos os modelos disponíveis.';
       
