@@ -122,7 +122,6 @@ const callGeminiDirect = async (prompt: string, maxRetries: number = 3): Promise
   let lastError: Error | null = null;
 
   const models = ['gemini-1.5-flash', 'gemini-1.5-flash-001', 'gemini-1.5-pro'];
-  let lastError: Error | null = null;
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     // Tentar cada modelo disponível
