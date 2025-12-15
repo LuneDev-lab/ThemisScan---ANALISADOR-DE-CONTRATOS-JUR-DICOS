@@ -140,63 +140,80 @@ export default async function handler(
   try {
     const prompt = buildPrompt(text, context);
 
-    // Chamar Gemini API
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
+    // Lista de modelos para tentar (fallback strategy)
+    const models = ['gemini-1.5-flash', 'gemini-1.5-flash-001', 'gemini-1.5-pro'];
+    let lastError = null;
+    let successResponse = null;
+
+    for (const model of models) {
+      try {
+        console.log(`[api/analyze] Tentando modelo: ${model}`);
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              contents: [
                 {
-                  text: prompt,
+                  parts: [
+                    {
+                      text: prompt,
+                    },
+                  ],
                 },
               ],
-            },
-          ],
-          generationConfig: {
-            temperature: 0.2,
-            responseMimeType: 'application/json',
-            responseSchema: analysisSchema,
-          },
-        }),
-      }
-    );
+              generationConfig: {
+                temperature: 0.2,
+                responseMimeType: 'application/json',
+                responseSchema: analysisSchema,
+              },
+            }),
+          }
+        );
 
-    // Processar resposta
-    if (!response.ok) {
-      let errorMessage = `Erro na API Gemini (${response.status})`;
-      try {
-        const errorData = await response.json();
-        errorMessage = errorData?.error?.message || JSON.stringify(errorData);
+        if (response.ok) {
+          successResponse = response;
+          break; // Sucesso!
+        }
+
+        // Se falhar, capturar erro e tentar próximo
+        const errorText = await response.text();
+        console.warn(`[api/analyze] Falha no modelo ${model}: ${response.status} - ${errorText}`);
+        lastError = { status: response.status, message: errorText };
+        
+        // Se for erro de chave (400/403), não adianta tentar outros modelos
+        if (response.status === 400 && (errorText.includes('API key') || errorText.includes('INVALID_ARGUMENT'))) {
+             // INVALID_ARGUMENT pode ser modelo, então continuamos. Mas API Key invalida paramos.
+             if (errorText.includes('API key')) break;
+        }
+        if (response.status === 401 || response.status === 403) break;
+
       } catch (e) {
-        // Response não é JSON, usar status text
-        errorMessage = response.statusText || errorMessage;
+        console.error(`[api/analyze] Erro de rede/fetch com modelo ${model}:`, e);
+        lastError = { status: 500, message: (e as Error).message };
       }
+    }
 
-      console.error('[api/analyze] Gemini API error:', response.status, errorMessage);
-
-      // Tratar status específicos
-      if (response.status === 401 || response.status === 403) {
-        res.status(500).json({ error: 'API key inválida ou sem permissão no servidor.' });
-        return;
+    if (!successResponse) {
+      const status = lastError?.status || 500;
+      const msg = lastError?.message || 'Falha em todos os modelos disponíveis.';
+      
+      // Melhorar mensagem de erro para o usuário
+      if (msg.includes('not found')) {
+         res.status(status).json({ error: `Erro de configuração: Modelos Gemini não encontrados. Verifique a API Key.` });
+         return;
       }
-      if (response.status === 429) {
-        res.status(429).json({ error: 'Limite de requisições atingido. Tente novamente em alguns minutos.' });
-        return;
-      }
-      if (response.status === 503) {
-        res.status(503).json({ error: 'Serviço Gemini temporariamente indisponível. Tente novamente em alguns minutos.' });
-        return;
-      }
-
-      res.status(502).json({ error: `Erro ao processar análise: ${errorMessage}` });
+      
+      res.status(status).json({ error: `Erro na API Gemini: ${msg}` });
       return;
     }
+
+    const response = successResponse;
+    // Processar resposta (código original continua aqui...)
+
 
     const data = await response.json();
 

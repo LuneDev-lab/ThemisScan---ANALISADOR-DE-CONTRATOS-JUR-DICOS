@@ -121,105 +121,123 @@ const callGeminiDirect = async (prompt: string, maxRetries: number = 3): Promise
 
   let lastError: Error | null = null;
 
+  const models = ['gemini-1.5-flash', 'gemini-1.5-flash-001', 'gemini-1.5-pro'];
+  let lastError: Error | null = null;
+
   for (let attempt = 0; attempt < maxRetries; attempt++) {
-    try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  {
-                    text: prompt
-                  }
-                ]
+    // Tentar cada modelo disponível
+    for (const model of models) {
+      try {
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              contents: [
+                {
+                  parts: [
+                    {
+                      text: prompt
+                    }
+                  ]
+                }
+              ],
+              generationConfig: {
+                temperature: 0.2,
+                responseMimeType: "application/json",
+                responseSchema: analysisSchema
               }
-            ],
-            generationConfig: {
-              temperature: 0.2,
-              responseMimeType: "application/json",
-              responseSchema: analysisSchema
+            })
+          }
+        );
+
+        if (!response.ok) {
+          let errorText = '';
+          try {
+            const parsedErr = await response.json();
+            errorText = parsedErr?.error?.message || JSON.stringify(parsedErr);
+          } catch (e) {
+            errorText = await response.text();
+          }
+
+          // Se for erro de modelo não encontrado (404), tenta o próximo modelo silenciosamente
+          if (response.status === 404 && errorText.includes('not found')) {
+            console.warn(`Modelo ${model} não encontrado, tentando próximo...`);
+            continue;
+          }
+
+          console.error('Gemini API returned an error:', response.status, errorText);
+
+          if (response.status === 400) {
+            // Erro 400 pode ser chave inválida ou requisição mal formatada
+            if (errorText.includes('API key not valid') || errorText.includes('API key')) {
+              throw new Error(
+                '❌ Chave de API inválida!\n\n' +
+                'A chave configurada não é válida. Verifique:\n' +
+                '1. Se você colocou a chave correta em .env.local\n' +
+                '2. Se a chave não expirou ou foi revogada\n' +
+                '3. Obtenha uma nova em: https://ai.google.dev/gemini-api/docs/api-key\n' +
+                '4. Reinicie o servidor após editar .env.local'
+              );
             }
-          })
-        }
-      );
-
-      if (!response.ok) {
-        let errorText = '';
-        try {
-          const parsedErr = await response.json();
-          errorText = parsedErr?.error?.message || JSON.stringify(parsedErr);
-        } catch (e) {
-          errorText = await response.text();
-        }
-
-        console.error('Gemini API returned an error:', response.status, errorText);
-
-        if (response.status === 400) {
-          // Erro 400 pode ser chave inválida ou requisição mal formatada
-          if (errorText.includes('API key not valid') || errorText.includes('API key')) {
-            throw new Error(
-              '❌ Chave de API inválida!\n\n' +
-              'A chave configurada não é válida. Verifique:\n' +
-              '1. Se você colocou a chave correta em .env.local\n' +
-              '2. Se a chave não expirou ou foi revogada\n' +
-              '3. Obtenha uma nova em: https://ai.google.dev/gemini-api/docs/api-key\n' +
-              '4. Reinicie o servidor após editar .env.local'
-            );
-          }
-          throw new Error('Requisição inválida (400). Verifique o formato do contrato.');
-        }
-        if (response.status === 401 || response.status === 403) {
-          throw new Error('Chave de API inválida ou sem permissão (401/403). Verifique a chave em .env.local');
-        }
-        if (response.status === 429) {
-          if (attempt < maxRetries - 1) {
-            const delay = Math.pow(2, attempt) * 1000;
-            console.log(`Rate limit hit (429). Retrying in ${delay}ms... (attempt ${attempt + 1}/${maxRetries})`);
-            await new Promise(resolve => setTimeout(resolve, delay));
+            // Se não for erro de chave, pode ser erro do modelo específico, tenta o próximo
             continue;
           }
-          throw new Error('Limite de taxa atingido (429). Tente novamente mais tarde.');
-        }
-        if (response.status === 503) {
-          if (attempt < maxRetries - 1) {
-            const delay = Math.pow(2, attempt) * 2000;
-            console.log(`Service overloaded (503). Retrying in ${delay}ms... (attempt ${attempt + 1}/${maxRetries})`);
-            await new Promise(resolve => setTimeout(resolve, delay));
-            continue;
+          if (response.status === 401 || response.status === 403) {
+            throw new Error('Chave de API inválida ou sem permissão (401/403). Verifique a chave em .env.local');
           }
-          throw new Error('Serviço sobrecarregado (503). O modelo está temporariamente indisponível. Tente novamente em alguns minutos.');
+          if (response.status === 429) {
+            // Rate limit - lança erro para ser pego pelo loop de retry externo
+            throw new Error('RATE_LIMIT');
+          }
+          if (response.status === 503) {
+             // Service unavailable - lança erro para ser pego pelo loop de retry externo
+            throw new Error('SERVICE_UNAVAILABLE');
+          }
+          throw new Error(`Erro na API Gemini: ${response.status} - ${errorText}`);
         }
-        throw new Error(`Erro na API Gemini: ${response.status} - ${errorText}`);
+
+        const data = await response.json();
+
+        if (!data.candidates || !data.candidates[0] || !data.candidates[0].content || !data.candidates[0].content.parts || !data.candidates[0].content.parts[0]) {
+          console.error('Invalid response structure from Gemini:', data);
+          throw new Error("Resposta inválida da API Gemini. Tente novamente.");
+        }
+
+        const jsonText = data.candidates[0].content.parts[0].text;
+        if (!jsonText) {
+          throw new Error("Nenhuma resposta gerada pela IA. Tente novamente.");
+        }
+
+        const parsedData = JSON.parse(jsonText) as AnalysisResponse;
+        return parsedData;
+
+      } catch (error) {
+        lastError = error as Error;
+        // Se for erro de rate limit ou serviço, sai do loop de modelos e vai para o retry de tempo
+        if (error instanceof Error && (error.message === 'RATE_LIMIT' || error.message === 'SERVICE_UNAVAILABLE')) {
+           break; 
+        }
+        // Outros erros (como rede), continua tentando outros modelos
       }
-
-      const data = await response.json();
-
-      if (!data.candidates || !data.candidates[0] || !data.candidates[0].content || !data.candidates[0].content.parts || !data.candidates[0].content.parts[0]) {
-        console.error('Invalid response structure from Gemini:', data);
-        throw new Error("Resposta inválida da API Gemini. Tente novamente.");
-      }
-
-      const jsonText = data.candidates[0].content.parts[0].text;
-      if (!jsonText) {
-        throw new Error("Nenhuma resposta gerada pela IA. Tente novamente.");
-      }
-
-      const parsedData = JSON.parse(jsonText) as AnalysisResponse;
-      return parsedData;
-
-    } catch (error) {
-      lastError = error as Error;
-      if (error instanceof Error && (error.message.includes('429') || error.message.includes('503'))) {
-        continue;
-      }
-      break;
     }
+
+    // Lógica de Retry (Rate Limit / 503)
+    if (lastError && (lastError.message === 'RATE_LIMIT' || lastError.message === 'SERVICE_UNAVAILABLE')) {
+        if (attempt < maxRetries - 1) {
+            const delay = Math.pow(2, attempt) * 1000;
+            console.log(`Rate limit/Overload. Retrying in ${delay}ms... (attempt ${attempt + 1}/${maxRetries})`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+        }
+        throw new Error('Serviço sobrecarregado ou limite atingido. Tente novamente mais tarde.');
+    }
+    
+    // Se chegou aqui e não é erro de retry, é porque falhou em todos os modelos
+    break;
   }
 
   throw lastError || new Error('Falha ao chamar API Gemini após múltiplas tentativas.');
