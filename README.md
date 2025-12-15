@@ -63,6 +63,7 @@ Ferramenta de análise de contratos alimentada por IA (Google Gemini) para ident
 |----------|-----------|-------------|----------|
 | `VITE_GEMINI_API_KEY` | Chave de API do Google Gemini | Não* | `AIzaSy...` |
 | `VITE_USE_BACKEND` | Se `true`, usa `/api/analyze` em vez de chamar Gemini diretamente | Não | `true` / `false` |
+| `VITE_BASE_PATH` | Caminho base da aplicação quando hospedada em subdiretório (ex: GitHub Pages) | Não | `/ThemisScan---ANALISADOR-DE-CONTRATOS-JUR-DICOS/` |
 
 *Se não configurada e `VITE_USE_BACKEND` não estiver ativo, a análise falhará.
 
@@ -135,9 +136,11 @@ GEMINI_API_KEY=sua_chave_secreto
    vercel
    ```
 
-2. **Configure variável de ambiente no Vercel Dashboard**
+2. **Configure variáveis de ambiente no Vercel Dashboard**
    - Acesse `Settings > Environment Variables`
    - Adicione: `GEMINI_API_KEY = sua_chave_aqui`
+   - Adicione: `VITE_USE_BACKEND = true`
+   - Não defina `VITE_GEMINI_API_KEY` (a chave fica só no servidor)
 
 3. **Configure frontend para usar backend**
    - Atualize `.env.local`:
@@ -163,6 +166,8 @@ GEMINI_API_KEY=sua_chave_secreto
 3. **Configure variáveis de ambiente**
    - Acesse `Site Settings > Build & deploy > Environment`
    - Adicione: `GEMINI_API_KEY = sua_chave_aqui`
+   - Adicione: `VITE_USE_BACKEND = true`
+   - Configure `VITE_BASE_PATH` apenas se o site for servido em subdiretório
 
 4. **Configure frontend para usar backend**
    - Atualize `.env.local`:
