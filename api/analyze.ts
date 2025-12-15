@@ -141,7 +141,8 @@ export default async function handler(
     const prompt = buildPrompt(text, context);
 
     // Lista de modelos para tentar (fallback strategy)
-    const models = ['gemini-1.5-flash', 'gemini-1.5-flash-001', 'gemini-1.5-pro'];
+    // Atualizado com base nos modelos disponíveis para a chave do usuário
+    const models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
     let lastError = null;
     let successResponse = null;
 
