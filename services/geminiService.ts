@@ -2,9 +2,23 @@ import { AnalysisResponse } from "../types";
 
 // Configurações de backend e API
 const USE_BACKEND = import.meta.env.VITE_USE_BACKEND === 'true';
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+const RAW_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+const API_KEY = RAW_API_KEY ? RAW_API_KEY.trim() : '';
 // Só usa backend se explicitamente configurado, não quando a chave está ausente
 const BACKEND_ENABLED = USE_BACKEND;
+
+const maskApiKey = (key?: string) => {
+  if (!key) return 'undefined';
+  if (key.length <= 8) return `${key.slice(0, 2)}***`;
+  return `${key.slice(0, 4)}***${key.slice(-4)}`;
+};
+
+console.info('[GeminiService] Configuração carregada:', {
+  USE_BACKEND,
+  API_KEY_PRESENTE: Boolean(API_KEY),
+  API_KEY_MASCARADA: maskApiKey(API_KEY),
+  BACKEND_ENABLED,
+});
 
 const parseRiskLevel = (level: string): 'BAIXO' | 'MÉDIO' | 'ALTO' => {
   const upper = level.toUpperCase();
